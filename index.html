@@ -1,0 +1,1496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Assam Disaster Alert (Prototype) | অসম দুৰ্যোগ সতৰ্কবাণী - Flood &amp; Hazard Student Prototype</title>
+  <meta name="description" content="Student prototype dashboard for Assam flood awareness using Leaflet, Open-Meteo weather, USGS earthquake feeds, and OpenStreetMap Overpass. Not an official warning system.">
+  
+  <!-- Google Fonts: Plus Jakarta Sans & Noto Sans Bengali -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Leaflet CSS for Map -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  
+  <!-- FontAwesome Icons for Emergency UI -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Student Prototype Disclaimer Banner -->
+  <div class="prototype-banner" role="note" aria-label="Prototype Disclaimer">
+    <i class="fa-solid fa-triangle-exclamation"></i>
+    <span><b>Student prototype.</b> Not an official warning system. Not affiliated with ASDMA, CWC, IMD, or NDRF. In an emergency call <a href="tel:112">112</a>.</span>
+  </div>
+
+  <!-- Primary Floating Header & Control Bar -->
+  <header class="app-header">
+    <div class="header-brand">
+      <div class="brand-icon">
+        <i class="fa-solid fa-water"></i>
+        <span class="pulse-ring"></span>
+      </div>
+      <div>
+        <h1 class="brand-title" data-i18n="title">Assam Disaster Alert (Prototype)</h1>
+        <p class="brand-sub" data-i18n="subtitle">Student Prototype • Live Weather, Seismic &amp; OSM Map (Sample Flood Overlays)</p>
+      </div>
+    </div>
+
+    <div class="header-controls">
+      <div class="control-group">
+        <label for="district" class="control-label">
+          <i class="fa-solid fa-location-dot"></i>
+          <span data-i18n="district">District</span>
+        </label>
+        <select id="district" class="custom-select" aria-label="Select Assam District"></select>
+      </div>
+
+      <button id="locate" class="btn btn-outline" title="Find my GPS location">
+        <i class="fa-solid fa-crosshairs"></i>
+        <span data-i18n="find">My Location</span>
+      </button>
+
+      <!-- Audio Siren Button -->
+      <button id="btn-emergency-siren" class="btn btn-siren-nav" title="Toggle Demo Siren Audio (Web Audio)">
+        <i class="fa-solid fa-volume-high" id="siren-icon"></i>
+        <span id="siren-label">Siren</span>
+      </button>
+
+      <!-- Sector Helplines Hub Modal -->
+      <button id="btn-call-sectors" class="btn btn-call-hub" title="View Verified Emergency Helplines &amp; Sample Camps">
+        <i class="fa-solid fa-phone-volume text-emerald"></i>
+        <span data-i18n="callSectors">Helplines</span>
+      </button>
+
+      <!-- Active Relief Camps Quick Button -->
+      <button id="btn-active-camps-top" class="btn btn-outline btn-camps-top" title="View Sample Relief Camps Directory">
+        <i class="fa-solid fa-tents text-cyan"></i>
+        <span data-i18n="activeCamps">Sample Camps</span>
+      </button>
+
+      <button id="sim" class="btn btn-warning" title="Toggle Flood Simulation Mode (Synthetic 135mm Rainfall)">
+        <i class="fa-solid fa-cloud-showers-water"></i>
+        <span data-i18n="simulate">Simulate Flood</span>
+      </button>
+
+      <button id="lang" class="btn btn-lang" title="Switch Language">
+        <i class="fa-solid fa-language"></i>
+        <span>অসমীয়া</span>
+      </button>
+
+      <a href="tel:112" class="btn btn-emergency" title="National Emergency Helpline 112">
+        <i class="fa-solid fa-phone-volume"></i>
+        <span>112</span>
+      </a>
+    </div>
+  </header>
+
+  <!-- Visible Simulation Mode Indicator (Shown only when Simulate Flood is active) -->
+  <div id="sim-status-banner" class="sim-status-banner" hidden role="status" aria-live="polite">
+    <span class="sim-badge-pill"><i class="fa-solid fa-flask"></i> SIMULATION</span>
+    <span><b>Simulation Mode Active:</b> Displaying synthetic flood stress scenario (135.0 mm simulated 24h rainfall). Not real-time emergency telemetry.</span>
+  </div>
+
+  <!-- ================= REAL FIELD PHOTO SLIDING HERO BANNER ================= -->
+  <section class="hero-photo-wrapper" id="hero-photo-section" aria-label="Assam Flood Field Operations Photo Showcase">
+    <!-- Real Photos Slides Track -->
+    <div class="hero-slides-track" id="hero-slides-track">
+      <figure class="hero-slide active" data-slide="basin">
+        <img src="images/brahmaputra_flood_aerial.jpg" alt="Aerial view of the swollen Brahmaputra River basin inundating Assam floodplains and bamboo stilt houses" class="hero-slide-img">
+        <div class="hero-scrim"></div>
+      </figure>
+      <figure class="hero-slide" data-slide="boat">
+        <img src="images/ndrf_boat_rescue.jpg" alt="NDRF and SDRF Assam teams evacuating marooned families from submerged stilt villages by motorboat" class="hero-slide-img">
+        <div class="hero-scrim"></div>
+      </figure>
+      <figure class="hero-slide" data-slide="chopper">
+        <img src="images/assam_rescue_chopper.jpg" alt="Indian Air Force helicopter dropping emergency rations and tarpaulins to NDRF teams on a flooded Assam embankment" class="hero-slide-img">
+        <div class="hero-scrim"></div>
+      </figure>
+      <figure class="hero-slide" data-slide="camp">
+        <img src="images/flood_relief_camp.jpg" alt="Red Cross India and Oxfam volunteers distributing clean drinking water and dry rations at an Assam flood relief camp" class="hero-slide-img">
+        <div class="hero-scrim"></div>
+      </figure>
+      <figure class="hero-slide" data-slide="wildlife">
+        <img src="images/kaziranga_rescue.jpg" alt="Assam Forest Department and veterinary teams rescuing a rhino calf and livestock onto raised highway corridors in Kaziranga" class="hero-slide-img">
+        <div class="hero-scrim"></div>
+      </figure>
+    </div>
+
+    <!-- Floating Controls & Photo Caption Overlay -->
+    <div class="sliding-header-overlay">
+      <!-- Top Scene Navigation Bar -->
+      <div class="slider-nav-bar">
+        <button id="slide-prev" class="slider-arrow-btn" title="Previous Photo" aria-label="Previous Photo">
+          <i class="fa-solid fa-chevron-left"></i>
+        </button>
+
+        <div class="slider-scene-pills" role="tablist" aria-label="Field Operation Photos">
+          <button class="slide-pill active" id="slide-tab-1" data-slide="basin" type="button" role="tab" aria-selected="true">
+            <span class="pill-num">01</span>
+            <i class="fa-solid fa-water"></i>
+            <span>Brahmaputra Flood Basin</span>
+          </button>
+          <button class="slide-pill" id="slide-tab-2" data-slide="boat" type="button" role="tab" aria-selected="false">
+            <span class="pill-num">02</span>
+            <i class="fa-solid fa-ship"></i>
+            <span>NDRF Boat Rescue</span>
+          </button>
+          <button class="slide-pill" id="slide-tab-3" data-slide="chopper" type="button" role="tab" aria-selected="false">
+            <span class="pill-num">03</span>
+            <i class="fa-solid fa-helicopter"></i>
+            <span>IAF Air-Drop Relief</span>
+          </button>
+          <button class="slide-pill" id="slide-tab-4" data-slide="camp" type="button" role="tab" aria-selected="false">
+            <span class="pill-num">04</span>
+            <i class="fa-solid fa-tents"></i>
+            <span>Relief Camp Rations</span>
+          </button>
+          <button class="slide-pill" id="slide-tab-5" data-slide="wildlife" type="button" role="tab" aria-selected="false">
+            <span class="pill-num">05</span>
+            <i class="fa-solid fa-paw"></i>
+            <span>Kaziranga Rescue</span>
+          </button>
+        </div>
+
+        <button id="slide-next" class="slider-arrow-btn" title="Next Photo" aria-label="Next Photo">
+          <i class="fa-solid fa-chevron-right"></i>
+        </button>
+      </div>
+
+      <!-- Slide Progress Indicator Strip -->
+      <div class="slide-progress-track">
+        <div class="slide-progress-bar" id="slide-progress-fill"></div>
+      </div>
+
+      <!-- Bottom Caption Card & Quick Controls -->
+      <div class="slider-bottom-hud">
+        <div class="hero-caption-card">
+          <div class="hero-caption-top">
+            <div class="scene-live-badge">
+              <span class="pulse-indicator"></span>
+              <span id="scene-status-text">PLACEHOLDER SCENE 01/05 • BRAHMAPUTRA FLOODPLAIN OVERVIEW</span>
+              <span id="headline-text" style="display:none;">PROTOTYPE ALERT DEMO (RED TIER) • SAMPLE ASSAM BASIN VIEW</span>
+            </div>
+            <span class="hero-caption-loc" id="hero-caption-loc"><i class="fa-solid fa-location-dot"></i> Upper Assam River Basin (Illustrative)</span>
+          </div>
+          <h2 class="hero-caption-title" id="hero-caption-title">Brahmaputra Monsoon Floodplain &amp; Stilt Settlements</h2>
+          <p class="hero-caption-desc" id="hero-caption-desc">Placeholder image illustrating how seasonal monsoon runoff affects low-lying Assam floodplains and char settlements. Replace with licensed photography before production use.</p>
+        </div>
+
+        <div class="slider-interactive-tools">
+          <!-- Play / Pause Slideshow -->
+          <button class="btn-icon-hud active" id="btn-toggle-autoplay" title="Pause or Resume Slideshow" type="button" aria-label="Pause or Resume Slideshow">
+            <i class="fa-solid fa-pause" id="autoplay-icon"></i>
+          </button>
+
+          <!-- Expand / Collapse View -->
+          <button class="btn-icon-hud" id="btn-toggle-collapse" title="Expand or Collapse Photo Banner" type="button" aria-label="Expand or Collapse Photo Banner">
+            <i class="fa-solid fa-up-right-and-down-left-from-center"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= THE 4 SAMPLE SUMMARY CARDS (BELOW HERO SECTION) ================= -->
+  <section class="ultimate-stats-section" id="ultimate-stats-section">
+    <div class="stats-container">
+      <!-- STAT CARD 1: DISTRICTS COVERED -->
+      <div class="stat-card modern-stat-card card-districts" data-stat="districts" tabindex="0" role="button" aria-label="Sample Districts Overview">
+        <div class="stat-top">
+          <div class="stat-icon-wrap red-glow">
+            <i class="fa-solid fa-map-location-dot"></i>
+          </div>
+          <span class="stat-status-badge red"><i class="fa-solid fa-flask"></i> Sample Data</span>
+        </div>
+        <div class="stat-body">
+          <span class="stat-title">District Profiles (Demo Data)</span>
+          <div class="stat-number-row">
+            <b class="stat-big-val text-red" id="stat-districts">20 Districts (Sample)</b>
+            <span class="stat-trend text-red">Prototype</span>
+          </div>
+          <p class="stat-desc">Pre-configured Assam district coordinates &amp; sample risk tiers</p>
+        </div>
+        <div class="stat-footer">
+          <div class="stat-mini-bar">
+            <div class="mini-bar-fill red" style="width: 68%;"></div>
+          </div>
+          <button class="btn-inspect-stat red" type="button" title="Select district in header dropdown">
+            <span>Use District Selector</span> <i class="fa-solid fa-arrow-right"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- STAT CARD 2: PREPAREDNESS GUIDE -->
+      <div class="stat-card modern-stat-card card-population" data-stat="population" tabindex="0" role="button" aria-label="Prototype Weather Source">
+        <div class="stat-top">
+          <div class="stat-icon-wrap amber-glow">
+            <i class="fa-solid fa-cloud-showers-heavy"></i>
+          </div>
+          <span class="stat-status-badge amber"><i class="fa-solid fa-satellite-dish"></i> Live Keyless API</span>
+        </div>
+        <div class="stat-body">
+          <span class="stat-title">Rainfall &amp; Seismic Feeds</span>
+          <div class="stat-number-row">
+            <b class="stat-big-val text-amber" id="stat-population">Open-Meteo + USGS</b>
+            <span class="stat-trend text-amber">Live JSON</span>
+          </div>
+          <p class="stat-desc">Real-time weather forecast &amp; 30-day Zone V seismic query</p>
+        </div>
+        <div class="stat-footer">
+          <div class="stat-mini-bar">
+            <div class="mini-bar-fill amber" style="width: 82%;"></div>
+          </div>
+          <button class="btn-inspect-stat amber" type="button" title="Live Open-Meteo &amp; USGS feeds shown in sidebar">
+            <span>View Sidebar Telemetry</span> <i class="fa-solid fa-arrow-right"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- STAT CARD 3: SAMPLE RIVER GAUGES -->
+      <div class="stat-card modern-stat-card card-rivers" data-stat="rivers" tabindex="0" role="button" aria-label="Sample River Gauges">
+        <div class="stat-top">
+          <div class="stat-icon-wrap cyan-glow">
+            <i class="fa-solid fa-water"></i>
+          </div>
+          <span class="stat-status-badge cyan"><i class="fa-solid fa-flask"></i> Sample Data</span>
+        </div>
+        <div class="stat-body">
+          <span class="stat-title">River Gauges (Sample Data)</span>
+          <div class="stat-number-row">
+            <b class="stat-big-val text-cyan" id="stat-rivers">14 Sample Stations</b>
+            <span class="stat-trend text-cyan">Demo Only</span>
+          </div>
+          <p class="stat-desc">Static demonstration levels (no live CWC feed connected)</p>
+        </div>
+        <div class="stat-footer">
+          <div class="stat-mini-bar">
+            <div class="mini-bar-fill cyan" style="width: 76%;"></div>
+          </div>
+          <button class="btn-inspect-stat cyan" type="button" title="View sample gauge markers on map">
+            <span>Sample Gauge Points</span> <i class="fa-solid fa-arrow-right"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- STAT CARD 4: SAMPLE RELIEF CAMPS & HELPLINES -->
+      <div class="stat-card modern-stat-card card-camps" data-stat="camps" tabindex="0" role="button" aria-label="Sample Camps &amp; Helplines">
+        <div class="stat-top">
+          <div class="stat-icon-wrap emerald-glow">
+            <i class="fa-solid fa-tents"></i>
+          </div>
+          <span class="stat-status-badge emerald"><i class="fa-solid fa-phone-volume"></i> Verified + Sample</span>
+        </div>
+        <div class="stat-body">
+          <span class="stat-title">Sample Camps &amp; Helplines</span>
+          <div class="stat-number-row">
+            <b class="stat-big-val text-green" id="stat-camps">12 Sample Camps</b>
+            <span class="stat-trend text-green">Verified Lines</span>
+          </div>
+          <p class="stat-desc">Demo camp entries paired with verified 112 / 1070 / 1077 lines</p>
+        </div>
+        <div class="stat-footer">
+          <div class="stat-mini-bar">
+            <div class="mini-bar-fill green" style="width: 92%;"></div>
+          </div>
+          <button class="btn-inspect-stat green" type="button" title="Click Sector Helplines above for directory">
+            <span>Open Directory Above</span> <i class="fa-solid fa-arrow-right"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= SAMPLE DETAILS STAT MODAL ================= -->
+  <div id="modal-stat-details" class="modal-backdrop" hidden>
+    <div class="modal-dialog modal-dialog-lg modal-stat-dialog">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <div class="modal-title-icon-box" id="stat-modal-icon-box">
+            <i class="fa-solid fa-chart-line text-cyan" id="stat-modal-icon"></i>
+          </div>
+          <div>
+            <h3 id="stat-modal-title">Sample Scenario Overview (Demo Data)</h3>
+            <p class="modal-sub" id="stat-modal-sub">Student Prototype • Illustrative Flood Scenario &amp; Sample Reference Data</p>
+          </div>
+        </div>
+        <button id="modal-stat-close" class="modal-close-btn" aria-label="Close dialog">&times;</button>
+      </div>
+
+      <!-- Stat Modal Navigation Tabs -->
+      <div class="stat-modal-tabs" id="stat-modal-tabs">
+        <button class="stat-modal-tab-btn active" data-tab="districts" type="button">
+          <i class="fa-solid fa-map-location-dot text-red"></i>
+          <span>District Profiles (Sample)</span>
+        </button>
+        <button class="stat-modal-tab-btn" data-tab="population" type="button">
+          <i class="fa-solid fa-flask text-amber"></i>
+          <span>Demo Scenario Notes</span>
+        </button>
+        <button class="stat-modal-tab-btn" data-tab="rivers" type="button">
+          <i class="fa-solid fa-water text-cyan"></i>
+          <span>Sample River Gauges</span>
+        </button>
+        <button class="stat-modal-tab-btn" data-tab="camps" type="button">
+          <i class="fa-solid fa-tents text-green"></i>
+          <span>12 Sample Camps</span>
+        </button>
+      </div>
+
+      <!-- Modal Body Content Panes -->
+      <div class="modal-body stat-modal-body">
+        <!-- PANE 1: SAMPLE DISTRICTS ROSTER -->
+        <div class="stat-tab-pane active" id="stat-pane-districts">
+          <div class="stat-pane-toolbar">
+            <div class="stat-search-box">
+              <i class="fa-solid fa-magnifying-glass"></i>
+              <input type="text" id="district-search-input" placeholder="Search Assam district..." aria-label="Search district">
+            </div>
+            <div class="stat-filter-chips">
+              <button class="filter-chip active" data-filter="all" type="button">All (Sample)</button>
+              <button class="filter-chip red" data-filter="critical" type="button"><i class="fa-solid fa-circle"></i> High Risk Tier</button>
+              <button class="filter-chip amber" data-filter="severe" type="button"><i class="fa-solid fa-circle"></i> Moderate Tier</button>
+            </div>
+          </div>
+          <div class="districts-roster-grid" id="districts-roster-list"></div>
+        </div>
+
+        <!-- PANE 2: PROTOTYPE SCENARIO NOTES -->
+        <div class="stat-tab-pane" id="stat-pane-population" style="display:none;">
+          <div class="relief-supplies-banner">
+            <h4><i class="fa-solid fa-flask text-amber"></i> Demo Data Notice</h4>
+            <p class="small">This prototype displays live weather (Open-Meteo), seismic events (USGS), and public map nodes (OpenStreetMap Overpass). Relief camp occupancy and river gauge heights are static demonstration figures.</p>
+          </div>
+        </div>
+
+        <!-- PANE 3: SAMPLE RIVER GAUGE DATA -->
+        <div class="stat-tab-pane" id="stat-pane-rivers" style="display:none;">
+          <div class="river-benchmarks-wrap">
+            <div class="cwc-sync-badge">
+              <span class="pulse-indicator"></span>
+              <b>Sample River Gauge Benchmarks (Static Demo Data — Not Live CWC Telemetry)</b>
+            </div>
+            <div class="rivers-telemetry-table-wrap">
+              <table class="rivers-telemetry-table">
+                <thead>
+                  <tr>
+                    <th>River &amp; Station</th>
+                    <th>Sample Level</th>
+                    <th>Reference Danger</th>
+                    <th>Status</th>
+                    <th>Sample Trend</th>
+                    <th>Gauge Indicator</th>
+                  </tr>
+                </thead>
+                <tbody id="rivers-detail-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- PANE 4: SAMPLE CAMPS -->
+        <div class="stat-tab-pane" id="stat-pane-camps" style="display:none;">
+          <div class="camps-quick-roster-section">
+            <div class="camps-roster-head">
+              <b>Sample Relief Camp Directory (Demo Data with Verified DEOC Helplines):</b>
+              <button class="btn btn-outline btn-sm" id="btn-open-full-camps-hub" type="button">
+                <i class="fa-solid fa-arrow-up-right-from-square"></i> Open Sample Camps Directory
+              </button>
+            </div>
+            <div class="camps-mini-grid" id="camps-mini-roster"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <a href="tel:1077" class="btn btn-emerald">
+          <i class="fa-solid fa-phone"></i> Call State DEOC 1077
+        </a>
+        <button id="modal-stat-done" class="btn btn-outline" type="button">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= VERIFIED HELPLINE DIRECTORY & SAMPLE RELIEF CAMPS MODAL ================= -->
+  <div id="modal-emergency-sectors" class="modal-backdrop" hidden>
+    <div class="modal-dialog modal-dialog-lg modal-calling-hub">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <div class="modal-title-icon-box call-icon">
+            <i class="fa-solid fa-phone-volume text-emerald"></i>
+          </div>
+          <div>
+            <h3>Verified Emergency Helplines &amp; Sample Camps</h3>
+            <p class="modal-sub" id="modal-helplines-verified-date">Last verified: 2026-11-12 • Prototype reference directory (not an official ASDMA system).</p>
+          </div>
+        </div>
+        <button id="modal-sectors-close" class="modal-close-btn" aria-label="Close dialog">&times;</button>
+      </div>
+
+      <!-- District Emergency Operation Center (DEOC) Quick Hotline Banner -->
+      <div class="deoc-quick-bar" id="modal-deoc-banner">
+        <div class="deoc-left">
+          <span class="badge-deoc"><i class="fa-solid fa-building-shield"></i> DISTRICT DEOC HELPLINE</span>
+          <b id="modal-deoc-district-name">Kamrup Metro:</b>
+          <span id="modal-deoc-phone-display" class="deoc-phone">0361-2733052 / 1077</span>
+        </div>
+        <a href="tel:1077" id="modal-deoc-call-link" class="btn btn-emerald btn-sm">
+          <i class="fa-solid fa-phone"></i> Call District DEOC
+        </a>
+      </div>
+
+      <!-- Sector Filter Tabs -->
+      <div class="sector-filter-tabs" id="sector-nav-tabs">
+        <button class="sector-tab-btn active" data-sector="all" type="button">
+          <i class="fa-solid fa-layer-group"></i> All Sectors
+        </button>
+        <button class="sector-tab-btn" data-sector="rescue" type="button">
+          <i class="fa-solid fa-truck-droplet text-red"></i> Rescue (112/1070/NDRF)
+        </button>
+        <button class="sector-tab-btn highlight-camps" data-sector="camps" type="button">
+          <i class="fa-solid fa-tents text-cyan"></i> Sample Camps (12)
+        </button>
+        <button class="sector-tab-btn" data-sector="food" type="button">
+          <i class="fa-solid fa-bowl-rice text-amber"></i> Relief &amp; NGOs
+        </button>
+        <button class="sector-tab-btn" data-sector="police" type="button">
+          <i class="fa-solid fa-shield-halved text-blue"></i> Police &amp; Highways
+        </button>
+        <button class="sector-tab-btn" data-sector="medical" type="button">
+          <i class="fa-solid fa-truck-medical text-green"></i> Medical &amp; 108
+        </button>
+        <button class="sector-tab-btn" data-sector="boat" type="button">
+          <i class="fa-solid fa-ship text-river"></i> Water Rescue
+        </button>
+        <button class="sector-tab-btn" data-sector="special" type="button">
+          <i class="fa-solid fa-hand-holding-heart text-purple"></i> Women/Child/Livestock
+        </button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="modal-body sector-directory-body">
+        <!-- SECTOR CARDS CONTAINER (Populated dynamically) -->
+        <div class="sector-cards-grid" id="sector-cards-container"></div>
+
+        <!-- SAMPLE RELIEF CAMPS ROSTER CONTAINER (Shown when Camps tab selected) -->
+        <div class="camps-directory-wrapper" id="camps-directory-container" style="display:none;">
+          <div class="camps-header-bar">
+            <div>
+              <b class="text-cyan"><i class="fa-solid fa-flask"></i> Sample Flood Relief Camps (12 Demo Entries)</b>
+              <p class="small text-secondary">Camp capacities and occupancies below are sample demo values. Phone buttons route to verified district DEOC / state SEOC helplines.</p>
+            </div>
+            <div class="camp-filter-box">
+              <label for="camp-district-filter" class="small">Filter District:</label>
+              <select id="camp-district-filter" class="custom-select custom-select-sm"></select>
+            </div>
+          </div>
+          <div class="camps-cards-grid" id="camps-list-cards"></div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <a href="tel:112" class="btn btn-emergency">
+          <i class="fa-solid fa-phone-volume"></i> National Emergency 112
+        </a>
+        <button id="modal-sectors-done" class="btn btn-outline" type="button">Close Directory</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= DATA SOURCES, APIS & MAP LAYERS MODAL ================= -->
+  <div id="map-settings-modal" class="modal-backdrop" hidden>
+    <div class="modal-dialog modal-dialog-lg">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <div class="modal-title-icon-box">
+            <i class="fa-solid fa-layer-group text-emerald"></i>
+          </div>
+          <div>
+            <h3>Data Sources &amp; Map Layer Settings</h3>
+            <p class="modal-sub">Keyless Public APIs (Open-Meteo, USGS, OSM) &amp; Sample Prototype Overlays</p>
+          </div>
+        </div>
+        <button id="modal-close" class="modal-close-btn" aria-label="Close dialog">&times;</button>
+      </div>
+
+      <!-- Modal Tabs -->
+      <div class="modal-tabs">
+        <button class="modal-tab-btn active" data-tab="granted-apis">
+          <i class="fa-solid fa-circle-info text-emerald"></i>
+          <span>Data Sources (6 Layers)</span>
+        </button>
+        <button class="modal-tab-btn" data-tab="map-engines">
+          <i class="fa-solid fa-map-location-dot text-cyan"></i>
+          <span>Map Engines &amp; Custom Keys</span>
+        </button>
+        <button class="modal-tab-btn" data-tab="diagnostics">
+          <i class="fa-solid fa-network-wired text-amber"></i>
+          <span>Endpoint Connectivity Check</span>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <!-- TAB 1: DATA SOURCES -->
+        <div class="modal-tab-content active" id="tab-content-granted-apis">
+          <div class="api-status-banner success">
+            <i class="fa-solid fa-circle-check"></i>
+            <div>
+              <b>KEYLESS PUBLIC APIS + SAMPLE PROTOTYPE LAYERS:</b>
+              <p>This student prototype connects to free keyless public APIs (Open-Meteo, USGS, Overpass/OSM, Leaflet tiles) and renders local sample overlays for river gauges and hazard zones without any embedded secrets or API keys.</p>
+            </div>
+          </div>
+
+          <div class="api-services-grid">
+            <!-- 1. Leaflet Map Tiles -->
+            <div class="api-service-card">
+              <div class="api-service-card-top">
+                <span class="api-service-title"><i class="fa-solid fa-map text-cyan"></i> Leaflet Geospatial Map Tiles</span>
+                <span class="badge-api-granted"><i class="fa-solid fa-check"></i> KEYLESS API</span>
+              </div>
+              <p class="api-service-desc">Humanitarian OpenStreetMap, Esri World Imagery, CartoDB Voyager &amp; OpenTopoMap XYZ tiles.</p>
+              <div class="api-service-meta">
+                <span>Source: OSM / Esri / Carto</span>
+                <span class="text-green"><i class="fa-solid fa-circle-dot"></i> Live Tile Layer</span>
+              </div>
+            </div>
+
+            <!-- 2. Open-Meteo Weather -->
+            <div class="api-service-card">
+              <div class="api-service-card-top">
+                <span class="api-service-title"><i class="fa-solid fa-cloud-showers-heavy text-river"></i> Open-Meteo Forecast API</span>
+                <span class="badge-api-granted"><i class="fa-solid fa-check"></i> KEYLESS API</span>
+              </div>
+              <p class="api-service-desc">Live 24-hour temperature, humidity, wind, and hourly rainfall progression for the selected district.</p>
+              <div class="api-service-meta">
+                <span>Source: api.open-meteo.com</span>
+                <span class="text-green"><i class="fa-solid fa-circle-dot"></i> Live JSON</span>
+              </div>
+            </div>
+
+            <!-- 3. Sample River Gauges -->
+            <div class="api-service-card">
+              <div class="api-service-card-top">
+                <span class="api-service-title"><i class="fa-solid fa-water text-cyan"></i> River Gauges (Sample Data)</span>
+                <span class="badge-custom"><i class="fa-solid fa-flask"></i> SAMPLE DATA</span>
+              </div>
+              <p class="api-service-desc">Static prototype water levels across 14 Brahmaputra/Barak stations (not connected to any live CWC feed).</p>
+              <div class="api-service-meta">
+                <span>Source: Local Static Array</span>
+                <span class="text-amber"><i class="fa-solid fa-flask"></i> Demo Only</span>
+              </div>
+            </div>
+
+            <!-- 4. USGS Earthquakes -->
+            <div class="api-service-card">
+              <div class="api-service-card-top">
+                <span class="api-service-title"><i class="fa-solid fa-bolt text-amber"></i> USGS Seismic Hazards API</span>
+                <span class="badge-api-granted"><i class="fa-solid fa-check"></i> KEYLESS API</span>
+              </div>
+              <p class="api-service-desc">Real-time earthquake GeoJSON events (M 2.5+) around Assam &amp; Northeast India over the past 30 days.</p>
+              <div class="api-service-meta">
+                <span>Source: earthquake.usgs.gov</span>
+                <span class="text-green"><i class="fa-solid fa-circle-dot"></i> Live GeoJSON</span>
+              </div>
+            </div>
+
+            <!-- 5. Overpass Emergency Geo-API -->
+            <div class="api-service-card">
+              <div class="api-service-card-top">
+                <span class="api-service-title"><i class="fa-solid fa-tents text-orange"></i> OpenStreetMap Overpass API</span>
+                <span class="badge-api-granted"><i class="fa-solid fa-check"></i> KEYLESS API</span>
+              </div>
+              <p class="api-service-desc">Queries hospitals, police stations, fire stations &amp; shelters within 12 km, paired with local sample fallback nodes.</p>
+              <div class="api-service-meta">
+                <span>Source: overpass-api.de</span>
+                <span class="text-green"><i class="fa-solid fa-circle-dot"></i> Live + Sample</span>
+              </div>
+            </div>
+
+            <!-- 6. Browser Siren Synthesizer -->
+            <div class="api-service-card">
+              <div class="api-service-card-top">
+                <span class="api-service-title"><i class="fa-solid fa-bullhorn text-red"></i> Browser Web Audio Siren</span>
+                <span class="badge-custom"><i class="fa-solid fa-flask"></i> LOCAL DEMO</span>
+              </div>
+              <p class="api-service-desc">Synthesized client-side dual-tone Web Audio siren for prototype demonstration purposes.</p>
+              <div class="api-service-meta">
+                <span>Protocol: Browser Web Audio</span>
+                <span class="text-amber"><i class="fa-solid fa-flask"></i> Demo Audio</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="api-quick-actions">
+            <button id="btn-regrant-all" class="btn btn-emerald" type="button">
+              <i class="fa-solid fa-circle-check"></i>
+              <span>Refresh Public Data Endpoints</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- TAB 2: MAP ENGINES & CUSTOM KEYS -->
+        <div class="modal-tab-content" id="tab-content-map-engines" style="display:none;">
+          <div class="form-group">
+            <label class="form-label"><b>Select Active Base Tile Provider (No API Key Required):</b></label>
+            <div class="engine-radios">
+              <label class="radio-card active" data-engine="osmHOT">
+                <input type="radio" name="tile-engine" value="osmHOT" checked>
+                <div>
+                  <div class="radio-card-header">
+                    <b>Humanitarian OpenStreetMap (HOT)</b>
+                    <span class="badge-free">Keyless (OSM)</span>
+                  </div>
+                  <p>OpenStreetMap Humanitarian style with roads, waterways &amp; elevation shading (CC-BY-SA / ODbL).</p>
+                </div>
+              </label>
+
+              <label class="radio-card" data-engine="esriSatellite">
+                <input type="radio" name="tile-engine" value="esriSatellite">
+                <div>
+                  <div class="radio-card-header">
+                    <b>Esri World Imagery (Satellite)</b>
+                    <span class="badge-free">Keyless (Esri)</span>
+                  </div>
+                  <p>Aerial satellite imagery of Assam terrain, river channels, and settlements.</p>
+                </div>
+              </label>
+
+              <label class="radio-card" data-engine="cartoVoyager">
+                <input type="radio" name="tile-engine" value="cartoVoyager">
+                <div>
+                  <div class="radio-card-header">
+                    <b>CartoDB Voyager (High Contrast Relief)</b>
+                    <span class="badge-free">Keyless (Carto)</span>
+                  </div>
+                  <p>Clean cartography with distinct water bodies, roads, and boundary labels.</p>
+                </div>
+              </label>
+
+              <label class="radio-card" data-engine="openTopo">
+                <input type="radio" name="tile-engine" value="openTopo">
+                <div>
+                  <div class="radio-card-header">
+                    <b>OpenTopoMap (Topographic Terrain)</b>
+                    <span class="badge-free">Keyless (OSM)</span>
+                  </div>
+                  <p>Contour elevations, river basins, and topographic terrain details.</p>
+                </div>
+              </label>
+
+              <label class="radio-card" data-engine="osmStandard">
+                <input type="radio" name="tile-engine" value="osmStandard">
+                <div>
+                  <div class="radio-card-header">
+                    <b>OpenStreetMap Standard</b>
+                    <span class="badge-free">Keyless (OSM)</span>
+                  </div>
+                  <p>Standard OpenStreetMap cartography with streets and places.</p>
+                </div>
+              </label>
+
+              <label class="radio-card" data-engine="mapboxCustom">
+                <input type="radio" name="tile-engine" value="mapboxCustom">
+                <div>
+                  <div class="radio-card-header">
+                    <b>Custom Mapbox / Aerial Satellite</b>
+                    <span class="badge-custom">Optional User Token</span>
+                  </div>
+                  <p>Optionally paste your own browser-stored Mapbox token (`pk.eyJ...`), or fall back to Esri Satellite.</p>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <!-- Custom API Input Box -->
+          <div class="form-group" id="custom-api-input-group" style="display:none;">
+            <label for="custom-api-key" class="form-label"><b>Personal Mapbox Access Token (Optional):</b></label>
+            <div class="custom-input-row">
+              <input type="text" id="custom-api-key" class="form-input" placeholder="pk.eyJ1Ijoi..." aria-label="Mapbox API Key">
+              <button id="btn-save-custom-key" class="btn btn-emerald btn-sm" type="button">Save Locally</button>
+              <button id="btn-test-custom-key" class="btn btn-outline btn-sm" type="button">Test Token</button>
+              <button id="btn-clear-custom-key" class="btn btn-outline btn-sm" type="button">Clear</button>
+            </div>
+            <span class="form-help" id="custom-key-feedback">Stored only in browser localStorage. Never committed to source control.</span>
+          </div>
+        </div>
+
+        <!-- TAB 3: DIAGNOSTICS & PING TEST -->
+        <div class="modal-tab-content" id="tab-content-diagnostics" style="display:none;">
+          <div class="diag-header-row">
+            <div>
+              <b>Public Endpoint Connectivity Check:</b>
+              <p class="small text-secondary">Tests reachability of keyless external APIs (OSM Tiles, Open-Meteo, USGS) vs local prototype data.</p>
+            </div>
+            <button id="btn-run-diagnostics" class="btn btn-primary btn-sm" type="button">
+              <i class="fa-solid fa-play"></i> Run Connectivity Check
+            </button>
+          </div>
+
+          <div class="diagnostic-terminal" id="diag-console-log">
+            <div class="diag-line success">[INIT] Prototype Map &amp; API Inspector Ready.</div>
+            <div class="diag-line">[INFO] Live sources: Open-Meteo, USGS GeoJSON, OSM Overpass &amp; Leaflet Tiles.</div>
+            <div class="diag-line">[READY] Click "Run Connectivity Check" to test external endpoints.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button id="btn-save-map-settings" class="btn btn-primary" type="button">Apply &amp; Close</button>
+        <button id="btn-modal-done" class="btn btn-outline" type="button">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN DASHBOARD CONTENT -->
+  <main class="dashboard-grid">
+    <!-- LEFT MAIN COLUMN: MAP + RESCUE TEAMS + FIELD PHOTOS + NGO HELPLINES -->
+    <div class="main-left-column">
+      <!-- MAP SECTION -->
+      <section class="map-card-wrapper">
+        <div class="map-header-bar">
+          <div class="map-heading">
+            <i class="fa-solid fa-map-location-dot"></i>
+            <h2 data-i18n="mapHeading">Assam Hazard &amp; River Basin Map</h2>
+            <span class="live-pill"><i class="fa-solid fa-circle"></i> Interactive Map</span>
+            <span class="active-engine-badge" id="map-engine-label"><i class="fa-solid fa-layer-group"></i> Map Layer: OSM HOT</span>
+          </div>
+
+          <div class="map-tools">
+            <div class="map-layer-pills" id="map-quick-filters">
+              <button class="filter-pill active" data-layer="gauges"><i class="fa-solid fa-gauge-high"></i> River Gauges</button>
+              <button class="filter-pill active" data-layer="hazard"><i class="fa-solid fa-water"></i> Flood Zones</button>
+              <button class="filter-pill active" data-layer="shelters"><i class="fa-solid fa-tents"></i> Shelters</button>
+              <button class="filter-pill active" data-layer="hospitals"><i class="fa-solid fa-hospital"></i> Medical</button>
+              <button class="filter-pill active" data-layer="quakes"><i class="fa-solid fa-bolt"></i> Quakes</button>
+            </div>
+            <button id="btn-map-settings" class="btn-sm" title="Change Base Map Layer (Satellite / Relief / OSM)" type="button">
+              <i class="fa-solid fa-layer-group"></i> <span>Layers</span>
+            </button>
+            <button id="reset-map-view" class="btn-sm" title="Reset map to full Assam view" type="button">
+              <i class="fa-solid fa-compress"></i> <span data-i18n="resetView">Assam View</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Leaflet Map Container (Fixed Dimensions via CSS) -->
+        <div id="map" class="interactive-map" role="region" aria-label="Geospatial Map of Assam"></div>
+
+        <!-- Map Legend Bar -->
+        <div class="map-legend">
+          <span class="legend-item"><span class="legend-badge red"></span> High Inundation / Flood Alert</span>
+          <span class="legend-item"><span class="legend-badge orange"></span> River Above Warning Mark</span>
+          <span class="legend-item"><span class="legend-badge green"></span> Evacuation Shelter</span>
+          <span class="legend-item"><span class="legend-badge blue"></span> SDRF / NDRF Response Base</span>
+          <span class="legend-item"><span class="legend-badge crimson"></span> Tertiary Hospital / GMCH</span>
+        </div>
+      </section>
+
+      <!-- 1. ILLUSTRATIVE FLOOD OPERATIONS GALLERY (PLACEHOLDERS) -->
+      <section class="card emergency-photos-card">
+        <div class="card-header">
+          <div class="card-title-wrap">
+            <i class="fa-solid fa-camera-retro text-cyan"></i>
+            <h2>Flood Response Scenario Gallery (Placeholders)</h2>
+          </div>
+          <span class="badge-sub">Placeholder Photos • Sample Data</span>
+        </div>
+
+        <div class="field-photos-grid">
+          <!-- Photo 1: NDRF Boat Rescue -->
+          <article class="photo-story-card">
+            <div class="photo-wrap">
+              <img src="images/ndrf_boat_rescue.jpg" alt="Placeholder illustration of boat rescue operations during flooding" loading="lazy" class="field-img">
+              <span class="photo-overlay-tag urgent"><i class="fa-solid fa-ship"></i> PLACEHOLDER • BOAT RESCUE</span>
+              <span class="photo-location-tag"><i class="fa-solid fa-location-dot"></i> Sample Floodplain Scene</span>
+            </div>
+            <div class="photo-caption-body">
+              <div class="photo-meta-row">
+                <span class="meta-unit"><i class="fa-solid fa-shield-halved text-red"></i> Emergency Rescue Reference</span>
+                <span class="meta-time"><i class="fa-solid fa-flask"></i> Sample Card</span>
+              </div>
+              <h3 class="photo-title">Motorboat Evacuation Preparedness Scenario</h3>
+              <p class="photo-desc">Illustrative placeholder showing swift-water boat evacuation from submerged homes. In a real emergency in Assam, call verified emergency lines 112 or 1070.</p>
+              <div class="photo-action-bar">
+                <a href="tel:112" class="btn-dial-photo rescue"><i class="fa-solid fa-phone"></i> Emergency: 112</a>
+                <span class="photo-stat-pill">Demo Scenario</span>
+              </div>
+            </div>
+          </article>
+
+          <!-- Photo 2: Food & Water Distribution Camp -->
+          <article class="photo-story-card">
+            <div class="photo-wrap">
+              <img src="images/flood_relief_camp.jpg" alt="Placeholder illustration of flood relief camp water and food distribution" loading="lazy" class="field-img">
+              <span class="photo-overlay-tag food"><i class="fa-solid fa-bowl-rice"></i> PLACEHOLDER • RELIEF CAMP</span>
+              <span class="photo-location-tag"><i class="fa-solid fa-location-dot"></i> Sample Shelter Scene</span>
+            </div>
+            <div class="photo-caption-body">
+              <div class="photo-meta-row">
+                <span class="meta-unit"><i class="fa-solid fa-hand-holding-heart text-amber"></i> Relief Camp Reference</span>
+                <span class="meta-time"><i class="fa-solid fa-flask"></i> Sample Card</span>
+              </div>
+              <h3 class="photo-title">Clean Drinking Water &amp; Shelter Supply Readiness</h3>
+              <p class="photo-desc">Placeholder visual representing potable water, chlorine purification, and dry food distribution in temporary relief shelters during monsoon floods.</p>
+              <div class="photo-action-bar">
+                <a href="tel:1070" class="btn-dial-photo food"><i class="fa-solid fa-phone"></i> State SEOC: 1070</a>
+                <span class="photo-stat-pill">Sample Data</span>
+              </div>
+            </div>
+          </article>
+
+          <!-- Photo 3: Kaziranga Wildlife & Livestock Rescue -->
+          <article class="photo-story-card">
+            <div class="photo-wrap">
+              <img src="images/kaziranga_rescue.jpg" alt="Placeholder illustration of wildlife and livestock flood safety near Kaziranga" loading="lazy" class="field-img">
+              <span class="photo-overlay-tag animal"><i class="fa-solid fa-paw"></i> PLACEHOLDER • WILDLIFE</span>
+              <span class="photo-location-tag"><i class="fa-solid fa-location-dot"></i> Kaziranga Corridor Scene</span>
+            </div>
+            <div class="photo-caption-body">
+              <div class="photo-meta-row">
+                <span class="meta-unit"><i class="fa-solid fa-tree text-green"></i> CWRC Wildlife Helpline</span>
+                <span class="meta-time"><i class="fa-solid fa-flask"></i> Sample Card</span>
+              </div>
+              <h3 class="photo-title">Wildlife Corridor &amp; Livestock Protection Awareness</h3>
+              <p class="photo-desc">Illustrative placeholder depicting high-ground flood platforms ('Poka Chaporis') used to shelter wildlife and livestock along flooded highway corridors.</p>
+              <div class="photo-action-bar">
+                <a href="tel:03776268007" class="btn-dial-photo animal"><i class="fa-solid fa-phone"></i> CWRC: 03776-268007</a>
+                <span class="photo-stat-pill">Verified Hotline</span>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <!-- 2. VERIFIED DISASTER & RESCUE HELPLINES -->
+      <section class="card rescue-teams-card">
+        <div class="card-header">
+          <div class="card-title-wrap">
+            <i class="fa-solid fa-shield-halved text-red"></i>
+            <h2>Verified Disaster &amp; Rescue Helplines (Assam)</h2>
+          </div>
+          <span class="badge-sub">Verified 2026-11-12</span>
+        </div>
+
+        <p class="section-intro-text">
+          Publicly listed emergency telephone numbers for Assam &amp; national response agencies (not integrated with any live control room dispatch API). Click any button to dial from a phone.
+        </p>
+
+        <div class="rescue-units-grid">
+          <!-- Unit 1: 1st Bn NDRF -->
+          <div class="rescue-unit-box priority">
+            <div class="unit-top">
+              <div class="unit-badge red"><i class="fa-solid fa-truck-droplet"></i> 1st Bn NDRF Patgaon</div>
+              <span class="unit-status online"><i class="fa-solid fa-circle-check"></i> Verified (ndrf.gov.in)</span>
+            </div>
+            <h4 class="unit-title">National Disaster Response Force (1st Bn NDRF, Patgaon)</h4>
+            <p class="unit-desc">1st Battalion NDRF Guwahati office and control room numbers from the official NDRF directory, alongside unified 112 ERSS.</p>
+            <div class="unit-meta-tags">
+              <span><i class="fa-solid fa-location-dot"></i> Patgaon, Guwahati</span>
+              <span><i class="fa-solid fa-check"></i> Source: ndrf.gov.in</span>
+            </div>
+            <div class="unit-call-row">
+              <a href="tel:112" class="btn-call-unit primary"><i class="fa-solid fa-phone-volume"></i> Emergency: 112</a>
+              <a href="tel:03612840027" class="btn-call-unit secondary"><i class="fa-solid fa-phone"></i> HQ: 0361-2840027</a>
+            </div>
+          </div>
+
+          <!-- Unit 2: ASDMA State SEOC -->
+          <div class="rescue-unit-box">
+            <div class="unit-top">
+              <div class="unit-badge cyan"><i class="fa-solid fa-water"></i> ASDMA State SEOC</div>
+              <span class="unit-status online"><i class="fa-solid fa-circle-check"></i> Verified (asdma.gov.in)</span>
+            </div>
+            <h4 class="unit-title">Assam State Emergency Operation Centre (SEOC)</h4>
+            <p class="unit-desc">24x7 toll-free state emergency control room (1070 / 1079) and Dispur SEOC landline for flood rescue and relief inquiries.</p>
+            <div class="unit-meta-tags">
+              <span><i class="fa-solid fa-map"></i> Dispur Secretariat</span>
+              <span><i class="fa-solid fa-check"></i> Source: asdma.gov.in</span>
+            </div>
+            <div class="unit-call-row">
+              <a href="tel:1070" class="btn-call-unit primary"><i class="fa-solid fa-phone-volume"></i> State Control: 1070</a>
+              <a href="tel:03612237011" class="btn-call-unit secondary"><i class="fa-solid fa-phone"></i> Direct: 0361-2237011</a>
+            </div>
+          </div>
+
+          <!-- Unit 3: District DEOC 1077 -->
+          <div class="rescue-unit-box">
+            <div class="unit-top">
+              <div class="unit-badge amber"><i class="fa-solid fa-building-shield"></i> District DEOC Control</div>
+              <span class="unit-status online"><i class="fa-solid fa-circle-check"></i> Verified (assam.gov.in)</span>
+            </div>
+            <h4 class="unit-title">District Emergency Operation Centres (DEOC)</h4>
+            <p class="unit-desc">Universal toll-free district control room helpline (1077) across Assam for shelter information and district coordination.</p>
+            <div class="unit-meta-tags">
+              <span><i class="fa-solid fa-location-dot"></i> All Assam Districts</span>
+              <span><i class="fa-solid fa-check"></i> Toll-Free 1077</span>
+            </div>
+            <div class="unit-call-row">
+              <a href="tel:1077" class="btn-call-unit primary"><i class="fa-solid fa-phone-volume"></i> District DEOC: 1077</a>
+              <a href="tel:112" class="btn-call-unit secondary"><i class="fa-solid fa-phone"></i> Unified ERSS: 112</a>
+            </div>
+          </div>
+
+          <!-- Unit 4: Fire & Water Rescue Escalation -->
+          <div class="rescue-unit-box">
+            <div class="unit-top">
+              <div class="unit-badge green"><i class="fa-solid fa-fire-extinguisher"></i> Fire &amp; Rescue</div>
+              <span class="unit-status online"><i class="fa-solid fa-circle-check"></i> Verified (india.gov.in)</span>
+            </div>
+            <h4 class="unit-title">Fire Services &amp; Emergency Water Rescue Routing</h4>
+            <p class="unit-desc">Direct Panbazar Fire Station &amp; national fire helpline (101). Direct IWT boat landlines could not be verified online; dial 1070 / 112 for water rescue.</p>
+            <div class="unit-meta-tags">
+              <span><i class="fa-solid fa-check"></i> National Fire: 101</span>
+              <span><i class="fa-solid fa-info-circle"></i> Boat routing: 1070 / 112</span>
+            </div>
+            <div class="unit-call-row">
+              <a href="tel:101" class="btn-call-unit primary"><i class="fa-solid fa-phone-volume"></i> Fire Rescue: 101</a>
+              <a href="tel:03612540222" class="btn-call-unit secondary"><i class="fa-solid fa-phone"></i> Guwahati: 0361-2540222</a>
+            </div>
+          </div>
+
+          <!-- Unit 5: Police Control -->
+          <div class="rescue-unit-box">
+            <div class="unit-top">
+              <div class="unit-badge blue"><i class="fa-solid fa-shield"></i> Police Emergency</div>
+              <span class="unit-status online"><i class="fa-solid fa-circle-check"></i> Verified (india.gov.in)</span>
+            </div>
+            <h4 class="unit-title">Assam Police Control &amp; Highway Emergency</h4>
+            <p class="unit-desc">24x7 police emergency dispatch via 100 or unified ERSS 112, plus NHAI national highway emergency assistance (1033).</p>
+            <div class="unit-meta-tags">
+              <span><i class="fa-solid fa-road"></i> Highway Help: 1033</span>
+              <span><i class="fa-solid fa-check"></i> Police: 100 / 112</span>
+            </div>
+            <div class="unit-call-row">
+              <a href="tel:100" class="btn-call-unit primary"><i class="fa-solid fa-phone-volume"></i> Police Control: 100</a>
+              <a href="tel:112" class="btn-call-unit secondary"><i class="fa-solid fa-phone"></i> National 112</a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. HUMANITARIAN RELIEF NGOS DIRECTORY -->
+      <section class="card ngos-directory-card">
+        <div class="card-header">
+          <div class="card-title-wrap">
+            <i class="fa-solid fa-hands-holding-child text-emerald"></i>
+            <h2>Humanitarian Relief NGOs &amp; Reference Contacts</h2>
+          </div>
+          <span class="badge-sub">Verified 2026-11-12</span>
+        </div>
+
+        <p class="section-intro-text">
+          Public contact numbers of humanitarian &amp; wildlife relief organizations checked during prototype cleanup. Unverified local numbers are clearly labeled.
+        </p>
+
+        <div class="ngo-cards-list">
+          <!-- NGO 1: Indian Red Cross -->
+          <div class="ngo-item-card">
+            <div class="ngo-icon-col red">
+              <i class="fa-solid fa-cross"></i>
+            </div>
+            <div class="ngo-details-col">
+              <div class="ngo-heading-row">
+                <h4 class="ngo-name">Indian Red Cross Society (Assam State Branch)</h4>
+                <span class="ngo-tag amber">Unverified Local Number</span>
+              </div>
+              <p class="ngo-services">First aid, blood services &amp; disaster relief organization. Previously listed 0361 landline could not be confirmed on an official source.</p>
+              <div class="ngo-location"><i class="fa-solid fa-triangle-exclamation"></i> Unverified contact — verify directly via indianredcross.org or call 108 for medical aid</div>
+            </div>
+            <div class="ngo-action-col">
+              <a href="tel:108" class="btn-dial-ngo" title="Call Verified 108 Medical Emergency">
+                <i class="fa-solid fa-phone"></i>
+                <span class="dial-txt">Medical Aid: 108</span>
+              </a>
+              <span class="dial-hint">Branch number unverified</span>
+            </div>
+          </div>
+
+          <!-- NGO 2: Oxfam India -->
+          <div class="ngo-item-card">
+            <div class="ngo-icon-col green">
+              <i class="fa-solid fa-wheat-awn"></i>
+            </div>
+            <div class="ngo-details-col">
+              <div class="ngo-heading-row">
+                <h4 class="ngo-name">Oxfam India — Disaster Response Reference</h4>
+                <span class="ngo-tag green">Verified Head Office</span>
+              </div>
+              <p class="ngo-services">Humanitarian aid, water/sanitation &amp; relief coordination. Verified main office number from oxfamindia.org.</p>
+              <div class="ngo-location"><i class="fa-solid fa-check"></i> Source: oxfamindia.org (Verified 2026-11-12)</div>
+            </div>
+            <div class="ngo-action-col">
+              <a href="tel:01146538000" class="btn-dial-ngo" title="Call Oxfam India Office">
+                <i class="fa-solid fa-phone"></i>
+                <span class="dial-txt">Call: 011-46538000</span>
+              </a>
+              <span class="dial-hint">National Office</span>
+            </div>
+          </div>
+
+          <!-- NGO 3: Goonj -->
+          <div class="ngo-item-card">
+            <div class="ngo-icon-col amber">
+              <i class="fa-solid fa-shirt"></i>
+            </div>
+            <div class="ngo-details-col">
+              <div class="ngo-heading-row">
+                <h4 class="ngo-name">Goonj — Disaster Relief &amp; Kits</h4>
+                <span class="ngo-tag green">Verified Head Office</span>
+              </div>
+              <p class="ngo-services">Clothing, hygiene &amp; family relief kits during floods. Verified official New Delhi head office landline from goonj.org.</p>
+              <div class="ngo-location"><i class="fa-solid fa-check"></i> Source: goonj.org (Verified 2026-11-12)</div>
+            </div>
+            <div class="ngo-action-col">
+              <a href="tel:01126972351" class="btn-dial-ngo" title="Call Goonj Office">
+                <i class="fa-solid fa-phone"></i>
+                <span class="dial-txt">Call: 011-26972351</span>
+              </a>
+              <span class="dial-hint">Verified Landline</span>
+            </div>
+          </div>
+
+          <!-- NGO 4: UNICEF Assam -->
+          <div class="ngo-item-card">
+            <div class="ngo-icon-col cyan">
+              <i class="fa-solid fa-baby"></i>
+            </div>
+            <div class="ngo-details-col">
+              <div class="ngo-heading-row">
+                <h4 class="ngo-name">UNICEF Assam Field Office</h4>
+                <span class="ngo-tag green">Verified Office</span>
+              </div>
+              <p class="ngo-services">Child nutrition, WASH, and maternal protection programs in Assam. Verified Guwahati office landline from unicef.org.</p>
+              <div class="ngo-location"><i class="fa-solid fa-check"></i> Source: unicef.org (Verified 2026-11-12)</div>
+            </div>
+            <div class="ngo-action-col">
+              <a href="tel:03612227181" class="btn-dial-ngo" title="Call UNICEF Assam Office">
+                <i class="fa-solid fa-phone"></i>
+                <span class="dial-txt">Call: 0361-2227181</span>
+              </a>
+              <span class="dial-hint">Guwahati Field Office</span>
+            </div>
+          </div>
+
+          <!-- NGO 5: Doctors Without Borders / MSF -->
+          <div class="ngo-item-card">
+            <div class="ngo-icon-col red">
+              <i class="fa-solid fa-kit-medical"></i>
+            </div>
+            <div class="ngo-details-col">
+              <div class="ngo-heading-row">
+                <h4 class="ngo-name">Doctors Without Borders (MSF India)</h4>
+                <span class="ngo-tag green">Verified Office</span>
+              </div>
+              <p class="ngo-services">Emergency medical care &amp; outbreak support organization. Verified office telephone listed on msfsouthasia.org.</p>
+              <div class="ngo-location"><i class="fa-solid fa-check"></i> Source: msfsouthasia.org (Verified 2026-11-12)</div>
+            </div>
+            <div class="ngo-action-col">
+              <a href="tel:01147703400" class="btn-dial-ngo" title="Call MSF India Office">
+                <i class="fa-solid fa-phone"></i>
+                <span class="dial-txt">Call: 011-47703400</span>
+              </a>
+              <span class="dial-hint">MSF India Office</span>
+            </div>
+          </div>
+
+          <!-- NGO 6: SEEDS India -->
+          <div class="ngo-item-card">
+            <div class="ngo-icon-col blue">
+              <i class="fa-solid fa-faucet-drip"></i>
+            </div>
+            <div class="ngo-details-col">
+              <div class="ngo-heading-row">
+                <h4 class="ngo-name">SEEDS India — Water &amp; Shelter Resilience</h4>
+                <span class="ngo-tag green">Verified Office</span>
+              </div>
+              <p class="ngo-services">Disaster shelter, WASH &amp; resilience programs in Northeast India. Updated to current number listed on seedsindia.org.</p>
+              <div class="ngo-location"><i class="fa-solid fa-check"></i> Source: seedsindia.org (Verified 2026-11-12)</div>
+            </div>
+            <div class="ngo-action-col">
+              <a href="tel:01120904048" class="btn-dial-ngo" title="Call SEEDS India">
+                <i class="fa-solid fa-phone"></i>
+                <span class="dial-txt">Call: 011-20904048</span>
+              </a>
+              <span class="dial-hint">SEEDS Office</span>
+            </div>
+          </div>
+
+          <!-- NGO 7: Rapid Response Disaster Relief -->
+          <div class="ngo-item-card">
+            <div class="ngo-icon-col amber">
+              <i class="fa-solid fa-utensils"></i>
+            </div>
+            <div class="ngo-details-col">
+              <div class="ngo-heading-row">
+                <h4 class="ngo-name">Rapid Response Disaster Relief</h4>
+                <span class="ngo-tag green">Verified Helpline</span>
+              </div>
+              <p class="ngo-services">Food kits, emergency relief &amp; rehabilitation programs. Verified contact number listed on rapidresponse.org.in.</p>
+              <div class="ngo-location"><i class="fa-solid fa-check"></i> Source: rapidresponse.org.in (Verified 2026-11-12)</div>
+            </div>
+            <div class="ngo-action-col">
+              <a href="tel:9551221199" class="btn-dial-ngo" title="Call Rapid Response">
+                <i class="fa-solid fa-phone"></i>
+                <span class="dial-txt">Call: 9551221199</span>
+              </a>
+              <span class="dial-hint">Verified Contact</span>
+            </div>
+          </div>
+
+          <!-- NGO 8: Kaziranga CWRC Wildlife Trust -->
+          <div class="ngo-item-card">
+            <div class="ngo-icon-col green">
+              <i class="fa-solid fa-paw"></i>
+            </div>
+            <div class="ngo-details-col">
+              <div class="ngo-heading-row">
+                <h4 class="ngo-name">Centre for Wildlife Rehabilitation (CWRC / WTI)</h4>
+                <span class="ngo-tag green">Verified Control Room</span>
+              </div>
+              <p class="ngo-services">Wildlife rescue &amp; rehabilitation center near Kaziranga National Park. Verified Kaziranga control room landline.</p>
+              <div class="ngo-location"><i class="fa-solid fa-check"></i> Bokakhat, Golaghat • Source: wti.org.in (Verified 2026-11-12)</div>
+            </div>
+            <div class="ngo-action-col">
+              <a href="tel:03776268007" class="btn-dial-ngo" title="Call CWRC Kaziranga">
+                <i class="fa-solid fa-phone"></i>
+                <span class="dial-txt">Call: 03776-268007</span>
+              </a>
+              <span class="dial-hint">Control Room</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. CITIZEN DEMO SOS FORM (PROTOTYPE ONLY) -->
+      <section class="card sos-request-card">
+        <div class="card-header">
+          <div class="card-title-wrap">
+            <i class="fa-solid fa-tower-broadcast text-red"></i>
+            <h2>Citizen Emergency SOS Form (Prototype Log)</h2>
+          </div>
+          <span class="badge-sub">Student Prototype • Not Monitored</span>
+        </div>
+
+        <p class="section-intro-text">
+          <b>Prototype Notice:</b> Submissions are saved to this app's local SQLite log (<code>data.db</code>) for demonstration only. <b>Nobody is guaranteed to be monitoring it</b>, and it does not contact NDRF, SDRF, or any government control room. In danger, call <a href="tel:112">112</a> immediately.
+        </p>
+
+        <form id="sos-dispatch-form" class="sos-form-grid" onsubmit="event.preventDefault(); window.submitCitizenSOS();">
+          <div class="form-row-group">
+            <label class="form-label"><b>1. Select Emergency Type:</b></label>
+            <div class="sos-type-pills">
+              <label class="type-pill active">
+                <input type="radio" name="sos-type" value="Boat Evacuation" checked>
+                <span><i class="fa-solid fa-ship"></i> Rescue Boat Needed</span>
+              </label>
+              <label class="type-pill">
+                <input type="radio" name="sos-type" value="Drinking Water & Food">
+                <span><i class="fa-solid fa-bowl-rice"></i> Food / Clean Water Shortage</span>
+              </label>
+              <label class="type-pill">
+                <input type="radio" name="sos-type" value="Medical & Snakebite Urgent">
+                <span><i class="fa-solid fa-truck-medical"></i> Medical / Snakebite Urgent</span>
+              </label>
+              <label class="type-pill">
+                <input type="radio" name="sos-type" value="Elderly & Infant Rescue">
+                <span><i class="fa-solid fa-person-shelter"></i> Elderly / Infant Evacuation</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="form-dual-row">
+            <div class="form-field">
+              <label for="sos-district-input" class="form-label"><b>2. District:</b></label>
+              <select id="sos-district-input" class="form-input">
+                <option value="Guwahati (Kamrup Metro)">Guwahati (Kamrup Metro)</option>
+                <option value="Dhubri">Dhubri</option>
+                <option value="Majuli (River Island)">Majuli (River Island)</option>
+                <option value="Barpeta">Barpeta</option>
+                <option value="Silchar (Cachar)">Silchar (Cachar)</option>
+                <option value="Dhemaji">Dhemaji</option>
+                <option value="Nagaon">Nagaon</option>
+                <option value="Goalpara">Goalpara</option>
+                <option value="Dibrugarh">Dibrugarh</option>
+                <option value="Morigaon">Morigaon</option>
+              </select>
+            </div>
+
+            <div class="form-field">
+              <label for="sos-phone-input" class="form-label"><b>3. Contact Phone Number:</b></label>
+              <input type="tel" id="sos-phone-input" class="form-input" placeholder="e.g. 9876543210" required>
+            </div>
+          </div>
+
+          <div class="form-field">
+            <label for="sos-location-input" class="form-label"><b>4. Village / Landmark (Demo Input):</b></label>
+            <input type="text" id="sos-location-input" class="form-input" placeholder="e.g. Sample riverine locality, landmark" required>
+          </div>
+
+          <div class="sos-action-row">
+            <button type="submit" class="btn btn-emergency btn-lg" id="btn-submit-sos">
+              <i class="fa-solid fa-paper-plane"></i>
+              <span>Submit Prototype SOS Request</span>
+            </button>
+            <a href="tel:112" class="btn btn-outline btn-lg text-red">
+              <i class="fa-solid fa-phone-volume"></i> Direct Call 112
+            </a>
+          </div>
+          <div id="sos-confirmation-msg" class="sos-success-alert" style="display:none;"></div>
+        </form>
+      </section>
+
+      <!-- 5. SAMPLE CORRIDOR & EMBANKMENT REFERENCE NOTES -->
+      <section class="card safe-grounds-card">
+        <div class="card-header">
+          <div class="card-title-wrap">
+            <i class="fa-solid fa-road text-amber"></i>
+            <h2>Highway Corridors &amp; High-Ground Reference (Sample Data)</h2>
+          </div>
+          <span class="badge-sub">Sample Reference Notes</span>
+        </div>
+
+        <div class="safe-routes-table">
+          <div class="route-item pass">
+            <div class="route-info">
+              <b><i class="fa-solid fa-circle-check text-green"></i> NH-27 (East-West Highway Corridor)</b>
+              <p>Sample geographic note: major southern Brahmaputra highway corridor linking Guwahati, Nagaon &amp; Lumding. Check NHAI (1033) for live traffic closures.</p>
+            </div>
+            <span class="route-tag safe">Sample Note</span>
+          </div>
+
+          <div class="route-item caution">
+            <div class="route-info">
+              <b><i class="fa-solid fa-triangle-exclamation text-amber"></i> NH-15 (North Bank Highway)</b>
+              <p>Sample geographic note: north-bank route across Sonitpur, Lakhimpur &amp; Dhemaji prone to monsoon culverts. Check local police / 1033 before travel.</p>
+            </div>
+            <span class="route-tag caution">Sample Note</span>
+          </div>
+
+          <div class="route-item pass">
+            <div class="route-info">
+              <b><i class="fa-solid fa-bridge text-cyan"></i> Bogibeel &amp; Saraighat River Bridges</b>
+              <p>Sample geographic note: primary Brahmaputra bridge crossings near Dibrugarh and Guwahati.</p>
+            </div>
+            <span class="route-tag safe">Sample Reference</span>
+          </div>
+
+          <div class="route-item pass">
+            <div class="route-info">
+              <b><i class="fa-solid fa-cow text-green"></i> Poka Chaporis (Raised Livestock Platforms)</b>
+              <p>Sample preparedness reference: community high-ground platforms in flood-prone floodplains used to shelter cattle and livestock.</p>
+            </div>
+            <span class="route-tag safe">Sample Reference</span>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- RIGHT ANALYTICS SIDEBAR -->
+    <aside class="sidebar-cards">
+      <!-- PUBLIC FLOOD SAFETY GUIDANCE CARD -->
+      <section class="card advisory-card">
+        <div class="card-header">
+          <div class="card-title-wrap">
+            <i class="fa-solid fa-book-medical text-amber"></i>
+            <h2 data-i18n="officialAdvisory">Public Flood Safety Guidance</h2>
+          </div>
+          <span class="badge-sub">Preparedness Tips</span>
+        </div>
+
+        <!-- Advisory Tabs -->
+        <div class="advisory-tabs">
+          <button class="adv-tab active" data-adv="evac"><i class="fa-solid fa-person-walking-arrow-right"></i> Evacuation</button>
+          <button class="adv-tab" data-adv="dos"><i class="fa-solid fa-shield-halved"></i> Do's &amp; Don'ts</button>
+          <button class="adv-tab" data-adv="health"><i class="fa-solid fa-kit-medical"></i> Snakebite &amp; Health</button>
+          <button class="adv-tab" data-adv="cattle"><i class="fa-solid fa-cow"></i> Livestock</button>
+          <button class="adv-tab" data-adv="ddma"><i class="fa-solid fa-address-book"></i> Verified Helplines</button>
+        </div>
+
+        <!-- Advisory Content Pane -->
+        <div class="advisory-pane" id="advisory-pane-content">
+          <!-- Injected via script.js -->
+        </div>
+      </section>
+
+      <!-- Weather & Monsoon Metrics Card -->
+      <section class="card weather-card">
+        <div class="card-header">
+          <div class="card-title-wrap">
+            <i class="fa-solid fa-cloud-bolt text-cyan"></i>
+            <h2 data-i18n="weather">Weather &amp; Rain Forecast (Open-Meteo)</h2>
+          </div>
+          <span id="current-location-chip" class="sub-chip">Guwahati</span>
+        </div>
+        <div id="weather" class="weather-body">
+          <div class="loading-spinner"><i class="fa-solid fa-spinner fa-spin"></i> Loading Open-Meteo forecast...</div>
+        </div>
+        <!-- 24H Rain Accumulation Bar Chart -->
+        <div class="rain-forecast-strip" id="rain-strip-wrap">
+          <div class="strip-header">
+            <span data-i18n="rain24hTrend">24-Hour Rainfall Progression</span>
+            <span class="strip-sum" id="rain-24h-total">-- mm</span>
+          </div>
+          <div class="rain-bars-container" id="rain-bars"></div>
+        </div>
+      </section>
+
+      <!-- Flood Risk & Safety Advisory Card -->
+      <section class="card risk-card">
+        <div class="card-header">
+          <div class="card-title-wrap">
+            <i class="fa-solid fa-triangle-exclamation text-amber"></i>
+            <h2 data-i18n="risk">Flood Risk Estimator (Prototype)</h2>
+          </div>
+          <div id="risk-badge-slot"></div>
+        </div>
+        <div id="risk" class="risk-body"></div>
+        <div class="safety-advisory-box">
+          <div class="advisory-title"><i class="fa-solid fa-bell"></i> <span data-i18n="advisoryTitle">Safety Advisory</span></div>
+          <p id="tips" class="tips-text"></p>
+        </div>
+      </section>
+
+      <!-- Sample River Gauge Stations Card -->
+      <section class="card gauges-card">
+        <div class="card-header">
+          <div class="card-title-wrap">
+            <i class="fa-solid fa-water text-river"></i>
+            <h2 data-i18n="riverGauges">River Gauges (Sample Demo Data)</h2>
+          </div>
+          <span class="badge-sub">Sample Data</span>
+        </div>
+        <div class="river-gauges-list" id="river-gauges-list">
+          <!-- Injected via script.js -->
+        </div>
+      </section>
+
+      <!-- Nearby Emergency Shelters & Hospitals Card -->
+      <section class="card places-card">
+        <div class="card-header">
+          <div class="card-title-wrap">
+            <i class="fa-solid fa-truck-medical text-red"></i>
+            <h2 data-i18n="nearby">Emergency Infrastructure (OSM + Sample)</h2>
+          </div>
+          <span class="badge-sub" id="nearby-count">Loading...</span>
+        </div>
+        <ul id="places" class="places-list">
+          <li class="loading-li"><i class="fa-solid fa-spinner fa-spin"></i> Querying Overpass OSM API...</li>
+        </ul>
+      </section>
+
+      <!-- Recent Earthquakes Card (USGS Live Feed) -->
+      <section class="card quakes-card">
+        <div class="card-header">
+          <div class="card-title-wrap">
+            <i class="fa-solid fa-volcano text-orange"></i>
+            <h2 data-i18n="quakes">Seismic Activity (USGS Live Feed)</h2>
+          </div>
+          <span class="badge-sub">30 Days</span>
+        </div>
+        <div id="quakes" class="quakes-body">
+          <div class="loading-spinner"><i class="fa-solid fa-spinner fa-spin"></i> Querying USGS Seismic Feed...</div>
+        </div>
+      </section>
+
+      <!-- Verified Emergency Sector Helplines Card -->
+      <section class="card emergency-card">
+        <div class="card-header">
+          <div class="card-title-wrap">
+            <i class="fa-solid fa-phone-volume text-emerald"></i>
+            <h2 data-i18n="emergency">Verified Emergency Helplines</h2>
+          </div>
+          <span class="badge-sub">Verified 2026-11-12</span>
+        </div>
+
+        <!-- Selected District DEOC Quick Call Strip -->
+        <div class="sidebar-deoc-box" id="sidebar-deoc-box">
+          <div class="s-deoc-info">
+            <span class="s-deoc-tag"><i class="fa-solid fa-building-shield"></i> DISTRICT DEOC:</span>
+            <b id="sidebar-deoc-title">Guwahati (Kamrup Metro)</b>
+            <span id="sidebar-deoc-num" class="s-deoc-phone">0361-2733052 / 1077</span>
+          </div>
+          <a href="tel:1077" id="sidebar-deoc-link" class="btn-dial-sm" title="Click to Call District DEOC">
+            <i class="fa-solid fa-phone"></i> CALL DEOC
+          </a>
+        </div>
+
+        <div class="helpline-grid">
+          <!-- Rescue -->
+          <a href="tel:112" class="help-item urgent">
+            <div class="help-top"><span class="help-sector-badge red">Emergency</span><i class="fa-solid fa-phone"></i></div>
+            <span class="help-num">112</span>
+            <span class="help-desc">National Emergency (ERSS)</span>
+          </a>
+
+          <!-- State SEOC -->
+          <a href="tel:1070" class="help-item food-item">
+            <div class="help-top"><span class="help-sector-badge amber">SEOC</span><i class="fa-solid fa-phone"></i></div>
+            <span class="help-num">1070</span>
+            <span class="help-desc">Assam State Control Room</span>
+          </a>
+
+          <!-- Police Control -->
+          <a href="tel:100" class="help-item police-item">
+            <div class="help-top"><span class="help-sector-badge blue">Police</span><i class="fa-solid fa-phone"></i></div>
+            <span class="help-num">100</span>
+            <span class="help-desc">Police Control Emergency</span>
+          </a>
+
+          <!-- District DEOC -->
+          <a href="tel:1077" class="help-item camp-item">
+            <div class="help-top"><span class="help-sector-badge cyan">DEOC</span><i class="fa-solid fa-phone"></i></div>
+            <span class="help-num">1077</span>
+            <span class="help-desc">District Disaster Control</span>
+          </a>
+
+          <!-- Medical 108 -->
+          <a href="tel:108" class="help-item medical-item">
+            <div class="help-top"><span class="help-sector-badge green">Medical</span><i class="fa-solid fa-phone"></i></div>
+            <span class="help-num">108</span>
+            <span class="help-desc">Emergency Ambulance</span>
+          </a>
+
+          <!-- Fire Rescue 101 -->
+          <a href="tel:101" class="help-item boat-item">
+            <div class="help-top"><span class="help-sector-badge river">Fire</span><i class="fa-solid fa-phone"></i></div>
+            <span class="help-num">101</span>
+            <span class="help-desc">Fire &amp; Rescue Service</span>
+          </a>
+        </div>
+
+        <button id="btn-open-sector-modal-side" class="btn btn-emerald btn-block" type="button">
+          <i class="fa-solid fa-address-book"></i>
+          <span>View All Verified Numbers &amp; Sample Camps</span>
+        </button>
+
+        <p class="small disclaimer-text" data-i18n="disclaimer">
+          Student prototype. Not affiliated with ASDMA, CWC, IMD, or NDRF. Live weather (Open-Meteo), seismic (USGS), and map nodes (OpenStreetMap) are combined with sample flood/camp overlays. In an emergency call 112.
+        </p>
+      </section>
+    </aside>
+  </main>
+
+  <footer class="app-footer-disclaimer">
+    Student prototype. Not an official warning system. In an emergency call <a href="tel:112">112</a>.
+  </footer>
+
+  <!-- Notification Toast -->
+  <div id="api-toast" class="api-toast" hidden>
+    <div class="toast-icon"><i class="fa-solid fa-circle-check"></i></div>
+    <div class="toast-body">
+      <b id="toast-title">Prototype Dashboard Ready</b>
+      <p id="toast-msg">Public feeds and verified helpline reference directory loaded.</p>
+    </div>
+  </div>
+
+  <!-- External Libraries -->
+  <!-- Leaflet JS for Geospatial Map (Loaded First) -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <!-- Application Logic -->
+  <script src="script.js"></script>
+</body>
+</html>
